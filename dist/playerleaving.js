@@ -4,6 +4,8 @@ exports.handlePlayerLeaving = void 0;
 const afkdetection_js_1 = require("./afkdetection.js");
 const index_js_1 = require("./index.js");
 const teammanagement_js_1 = require("./teammanagement.js");
+const discord_js_1 = require("./discord.js");
+const config_js_1 = require("./config.js");
 function handlePlayerLeaving(player) {
     const playerId = player.id;
     let playerIdList = [];
@@ -22,6 +24,13 @@ function handlePlayerLeaving(player) {
     if (playerList.length === 0)
         index_js_1.room.stopGame();
     console.log(`>>> ${player.name} saiu da sala.`);
+    // Enviar webhook do Discord
+    const config = (0, config_js_1.getRoomConfig)();
+    if (config.webhookUrl) {
+        (0, discord_js_1.sendDiscordWebhook)(config.webhookUrl, {
+            embeds: [(0, discord_js_1.createPlayerLeaveEmbed)(player.name, config.roomName)]
+        }).catch(err => console.error("Erro ao enviar webhook:", err));
+    }
 }
 exports.handlePlayerLeaving = handlePlayerLeaving;
 function handleTeamPlayerLeaving(teamPlayerIdList, playerList) {

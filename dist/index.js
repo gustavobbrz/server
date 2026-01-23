@@ -35,9 +35,10 @@ const playerleaving_js_1 = require("./playerleaving.js");
 const teammanagement_js_1 = require("./teammanagement.js");
 const moderation_js_1 = require("./moderation.js");
 const commands_js_1 = require("./commands.js");
+const admincommands_js_1 = require("./admincommands.js");
+const config_js_1 = require("./config.js");
+const discord_js_1 = require("./discord.js");
 exports.debuggingMode = false;
-const scoreLimit = 3;
-const timeLimit = 3;
 exports.playerConnStrings = new Map();
 exports.adminAuthList = new Set(fs.readFileSync("lists/adminlist.txt", "utf8").split("\n").map((line) => line.trim()));
 exports.badWordList = new Set(fs.readFileSync("lists/badwords.txt", "utf8").split("\n").map((line) => line.trim()));
@@ -48,10 +49,11 @@ const stadium3x3 = fs.readFileSync("stadiums/futsal3x3.hbs", "utf8");
 exports.specPlayerIdList = [];
 exports.redPlayerIdList = [];
 exports.bluePlayerIdList = [];
+const config = (0, config_js_1.getRoomConfig)();
 haxball_js_1.default.then((HBInit) => {
     exports.room = HBInit({
-        roomName: "🟡🟢 FUTSAL NIVEL 3X3 - AUTO 🟡🟢",
-        maxPlayers: 30,
+        roomName: config.roomName,
+        maxPlayers: config.maxPlayers,
         public: true,
         noPlayer: true,
         geo: {
@@ -61,12 +63,15 @@ haxball_js_1.default.then((HBInit) => {
         },
         token: tokenFile, //https://haxball.com/headlesstoken
     });
-    exports.room.setScoreLimit(scoreLimit);
-    exports.room.setTimeLimit(timeLimit);
+    exports.room.setScoreLimit(config.scoreLimit);
+    exports.room.setTimeLimit(config.timeLimit);
     exports.room.setTeamsLock(true);
     exports.room.setCustomStadium(practiceStadium);
     exports.room.onRoomLink = function (url) {
-        console.log(url);
+        console.log("═══════════════════════════════════════");
+        console.log(`🔥 SALA: ${config.roomName}`);
+        console.log(`🔗 LINK: ${url}`);
+        console.log("═══════════════════════════════════════");
     };
     exports.room.onPlayerJoin = function (player) {
         (0, playerjoining_js_1.handlePlayerJoining)(player);
@@ -78,14 +83,21 @@ haxball_js_1.default.then((HBInit) => {
         const scores = exports.room.getScores();
         const teamScore = teamId === 1 ? scores.red : scores.blue;
         const teamPlayerIdList = teamId === 1 ? exports.redPlayerIdList : exports.bluePlayerIdList;
-        if (teamScore === scoreLimit || scores.time > timeLimit * 60)
+        // Anunciar gol
+        const goalScorer = teamId === 1 ? "🔴 Time Vermelho" : "🔵 Time Azul";
+        exports.room.sendAnnouncement(`⚽ GOOOOOL! ${goalScorer} marcou!`, null, teamId === 1 ? 0xFF0000 : 0x0000FF, "bold", 2);
+        exports.room.sendAnnouncement(`📊 Placar: 🔴 ${scores.red} x ${scores.blue} 🔵`, null, 0xFFFFFF, "bold", 1);
+        if (teamScore === config.scoreLimit || scores.time > config.timeLimit * 60) {
             restartGameWithCallback(() => (0, teammanagement_js_1.handleTeamWin)(teamPlayerIdList));
+            sendGameResultWebhook(scores);
+        }
     };
     //triggers *only* when a team is winning and the timer runs out, 
     //because the room is also listening for the onTeamGoal event, which triggers first
     exports.room.onTeamVictory = function (scores) {
         const teamPlayerIdList = scores.red > scores.blue ? exports.redPlayerIdList : exports.bluePlayerIdList;
         restartGameWithCallback(() => (0, teammanagement_js_1.handleTeamWin)(teamPlayerIdList));
+        sendGameResultWebhook(scores);
     };
     exports.room.onPlayerActivity = function (player) {
         (0, afkdetection_js_1.handlePlayerActivity)(player.id);
@@ -96,6 +108,10 @@ haxball_js_1.default.then((HBInit) => {
     };
     exports.room.onPlayerChat = function (player, message) {
         console.log(`${player.name}: ${message}`);
+        // Verificar comandos de admin primeiro
+        if ((0, admincommands_js_1.checkAndHandleAdminCommands)(player, message))
+            return false;
+        // Depois comandos normais
         return !(0, commands_js_1.checkAndHandleCommands)(player, message) && !(0, moderation_js_1.checkAndHandleBadWords)(player, message) && !(0, moderation_js_1.checkAndHandleSpam)(player, message);
     };
 });
@@ -127,3 +143,13 @@ function pauseUnpauseGame() {
     exports.room.pauseGame(false);
 }
 exports.pauseUnpauseGame = pauseUnpauseGame;
+function sendGameResultWebhook(scores) {
+    if (!config.webhookUrl)
+        return;
+    const playerList = exports.room.getPlayerList();
+    const redPlayers = playerList.filter(p => exports.redPlayerIdList.includes(p.id)).map(p => p.name);
+    const bluePlayers = playerList.filter(p => exports.bluePlayerIdList.includes(p.id)).map(p => p.name);
+    (0, discord_js_1.sendDiscordWebhook)(config.webhookUrl, {
+        embeds: [(0, discord_js_1.createGameResultEmbed)(scores.red, scores.blue, redPlayers, bluePlayers, config.roomName)]
+    }).catch(err => console.error("Erro ao enviar webhook:", err));
+}

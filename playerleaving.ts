@@ -1,6 +1,8 @@
 import { removePlayerFromAfkMapsAndSets } from "./afkdetection.js";
 import { specPlayerIdList, playerConnStrings, redPlayerIdList, bluePlayerIdList, room, pauseUnpauseGame, restartGameWithCallback } from "./index.js";
 import { movePlayerToTeam, moveLastOppositeTeamMemberToSpec } from "./teammanagement.js";
+import { sendDiscordWebhook, createPlayerLeaveEmbed } from "./discord.js";
+import { getRoomConfig } from "./config.js";
 
 export function handlePlayerLeaving(player: PlayerObject): void {
     const playerId: number = player.id;
@@ -17,6 +19,14 @@ export function handlePlayerLeaving(player: PlayerObject): void {
     playerConnStrings.delete(playerId);
     if (playerList.length === 0) room.stopGame();
     console.log(`>>> ${player.name} saiu da sala.`);
+    
+    // Enviar webhook do Discord
+    const config = getRoomConfig();
+    if (config.webhookUrl) {
+        sendDiscordWebhook(config.webhookUrl, {
+            embeds: [createPlayerLeaveEmbed(player.name, config.roomName)]
+        }).catch(err => console.error("Erro ao enviar webhook:", err));
+    }
 }
 
 function handleTeamPlayerLeaving(teamPlayerIdList: number[], playerList: PlayerObject[]) {

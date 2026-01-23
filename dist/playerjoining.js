@@ -4,17 +4,40 @@ exports.handlePlayerJoining = void 0;
 const index_js_1 = require("./index.js");
 const moderation_js_1 = require("./moderation.js");
 const teammanagement_js_1 = require("./teammanagement.js");
+const discord_js_1 = require("./discord.js");
+const config_js_1 = require("./config.js");
 function handlePlayerJoining(player) {
     const playerId = player.id;
     const playerName = player.name;
     const playerList = index_js_1.room.getPlayerList();
+    const config = (0, config_js_1.getRoomConfig)();
     if ((0, moderation_js_1.checkAndHandleBadWords)(player, playerName))
         return;
     if (isPlayerAlreadyConnected(player, player.conn))
         return;
-    if (index_js_1.adminAuthList.has(player.auth))
+    if (index_js_1.adminAuthList.has(player.auth)) {
         index_js_1.room.setPlayerAdmin(playerId, true);
-    index_js_1.room.sendAnnouncement(`👋 Bem-vindo, ${playerName}.`, playerId, 0x00FF00, "bold", 0);
+        index_js_1.room.sendAnnouncement(`👑 ${playerName} é um administrador!`, null, 0xFFD700, "bold", 2);
+    }
+    // Mensagem de boas-vindas personalizada
+    index_js_1.room.sendAnnouncement("═══════════════════════════════════════", playerId, 0xFFFFFF, "bold", 0);
+    index_js_1.room.sendAnnouncement(`🔥 Bem-vindo(a) ${playerName}! 🔥`, playerId, 0xFF6600, "bold", 2);
+    index_js_1.room.sendAnnouncement("═══════════════════════════════════════", playerId, 0xFFFFFF, "bold", 0);
+    index_js_1.room.sendAnnouncement("", playerId, 0xFFFFFF, "normal", 0);
+    index_js_1.room.sendAnnouncement("💬 Entre no nosso Discord para fazer amigos!", playerId, 0x7289DA, "bold", 1);
+    index_js_1.room.sendAnnouncement(`🔗 ${config.discordLink}`, playerId, 0x00FFFF, "bold", 1);
+    index_js_1.room.sendAnnouncement("", playerId, 0xFFFFFF, "normal", 0);
+    index_js_1.room.sendAnnouncement("📜 Digite !regras para ver as regras", playerId, 0xFFFF00, "normal", 1);
+    index_js_1.room.sendAnnouncement("❓ Digite !help para ver todos os comandos", playerId, 0xFFFF00, "normal", 1);
+    index_js_1.room.sendAnnouncement("═══════════════════════════════════════", playerId, 0xFFFFFF, "bold", 0);
+    // Anunciar entrada para todos
+    index_js_1.room.sendAnnouncement(`🟢 ${playerName} entrou na sala!`, null, 0x00FF00, "normal", 1);
+    // Enviar webhook do Discord
+    if (config.webhookUrl) {
+        (0, discord_js_1.sendDiscordWebhook)(config.webhookUrl, {
+            embeds: [(0, discord_js_1.createPlayerJoinEmbed)(playerName, config.roomName)]
+        }).catch(err => console.error("Erro ao enviar webhook:", err));
+    }
     index_js_1.specPlayerIdList.push(playerId);
     console.log(`>>> ${playerName} entrou na sala.`);
     checkAndRestartWithNewMode(playerList);

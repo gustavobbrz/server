@@ -6,10 +6,11 @@ import { handlePlayerLeaving } from "./playerleaving.js";
 import { handleTeamWin } from "./teammanagement.js";
 import { checkAndHandleBadWords, checkAndHandleSpam } from "./moderation.js";
 import { checkAndHandleCommands } from "./commands.js";
+import { checkAndHandleAdminCommands } from "./admincommands.js";
+import { getRoomConfig } from "./config.js";
+import { sendDiscordWebhook, createGameResultEmbed } from "./discord.js";
 
 export const debuggingMode = false;
-const scoreLimit: number = 3;
-const timeLimit: number = 3;
 
 export const playerConnStrings = new Map<number, string>();
 export const adminAuthList: Set<string> = new Set(fs.readFileSync("lists/adminlist.txt", "utf8").split("\n").map((line: string) => line.trim()));
@@ -25,10 +26,12 @@ export let bluePlayerIdList: number[] = [];
 
 export let room: RoomObject;
 
+const config = getRoomConfig();
+
 HaxballJS.then((HBInit) => {
   room = HBInit({
-    roomName: "🟡🟢 FUTSAL NIVEL 3X3 - AUTO 🟡🟢",
-    maxPlayers: 30,
+    roomName: config.roomName,
+    maxPlayers: config.maxPlayers,
     public: true,
     noPlayer: true,
     geo: {
@@ -39,13 +42,16 @@ HaxballJS.then((HBInit) => {
     token: tokenFile, //https://haxball.com/headlesstoken
   });
 
-  room.setScoreLimit(scoreLimit);
-  room.setTimeLimit(timeLimit);
+  room.setScoreLimit(config.scoreLimit);
+  room.setTimeLimit(config.timeLimit);
   room.setTeamsLock(true);
   room.setCustomStadium(practiceStadium);
 
   room.onRoomLink = function (url: string) {
-    console.log(url);
+    console.log("═══════════════════════════════════════");
+    console.log(`🔥 SALA: ${config.roomName}`);
+    console.log(`🔗 LINK: ${url}`);
+    console.log("═══════════════════════════════════════");
   };
 
   room.onPlayerJoin = function (player: PlayerObject): void {
@@ -60,7 +66,16 @@ HaxballJS.then((HBInit) => {
     const scores = room.getScores();
     const teamScore = teamId === 1 ? scores.red : scores.blue;
     const teamPlayerIdList = teamId === 1 ? redPlayerIdList : bluePlayerIdList;
-    if (teamScore === scoreLimit || scores.time > timeLimit * 60) restartGameWithCallback(() => handleTeamWin(teamPlayerIdList));
+    
+    // Anunciar gol
+    const goalScorer = teamId === 1 ? "🔴 Time Vermelho" : "🔵 Time Azul";
+    room.sendAnnouncement(`⚽ GOOOOOL! ${goalScorer} marcou!`, null, teamId === 1 ? 0xFF0000 : 0x0000FF, "bold", 2);
+    room.sendAnnouncement(`📊 Placar: 🔴 ${scores.red} x ${scores.blue} 🔵`, null, 0xFFFFFF, "bold", 1);
+    
+    if (teamScore === config.scoreLimit || scores.time > config.timeLimit * 60) {
+      restartGameWithCallback(() => handleTeamWin(teamPlayerIdList));
+      sendGameResultWebhook(scores);
+    }
   }
 
   //triggers *only* when a team is winning and the timer runs out, 
@@ -68,6 +83,7 @@ HaxballJS.then((HBInit) => {
   room.onTeamVictory = function (scores: ScoresObject): void {
     const teamPlayerIdList = scores.red > scores.blue ? redPlayerIdList : bluePlayerIdList;
     restartGameWithCallback(() => handleTeamWin(teamPlayerIdList));
+    sendGameResultWebhook(scores);
   }
 
   room.onPlayerActivity = function (player: PlayerObject): void {
@@ -80,6 +96,11 @@ HaxballJS.then((HBInit) => {
 
   room.onPlayerChat = function (player: PlayerObject, message: string): boolean {
     console.log(`${player.name}: ${message}`);
+    
+    // Verificar comandos de admin primeiro
+    if (checkAndHandleAdminCommands(player, message)) return false;
+    
+    // Depois comandos normais
     return !checkAndHandleCommands(player, message) && !checkAndHandleBadWords(player, message) && !checkAndHandleSpam(player, message);
   }
 });
@@ -108,4 +129,16 @@ function setAppropriateStadium() {
 export function pauseUnpauseGame() {
   room.pauseGame(true);
   room.pauseGame(false);
+}
+
+function sendGameResultWebhook(scores: ScoresObject): void {
+  if (!config.webhookUrl) return;
+  
+  const playerList = room.getPlayerList();
+  const redPlayers = playerList.filter(p => redPlayerIdList.includes(p.id)).map(p => p.name);
+  const bluePlayers = playerList.filter(p => bluePlayerIdList.includes(p.id)).map(p => p.name);
+  
+  sendDiscordWebhook(config.webhookUrl, {
+    embeds: [createGameResultEmbed(scores.red, scores.blue, redPlayers, bluePlayers, config.roomName)]
+  }).catch(err => console.error("Erro ao enviar webhook:", err));
 }
