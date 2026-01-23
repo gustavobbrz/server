@@ -27,14 +27,14 @@ export let room: RoomObject;
 
 HaxballJS.then((HBInit) => {
   room = HBInit({
-    roomName: "⚖️ FUTSAL 24/7 JUSTO (~15 DE PING) ⚖️",
-    maxPlayers: 16,
-    public: !debuggingMode,
+    roomName: "🟡🟢 FUTSAL NIVEL 3X3 - AUTO 🟡🟢",
+    maxPlayers: 30,
+    public: true,
     noPlayer: true,
     geo: {
-      code: "PT",
-      lat: 41.15144214309606,
-      lon: -8.613879659626768
+      code: "BR",
+      lat: -23.51634162,
+      lon: -46.6460824,
     },
     token: tokenFile, //https://haxball.com/headlesstoken
   });
