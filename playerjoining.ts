@@ -10,35 +10,47 @@ export function handlePlayerJoining(player: PlayerObject): void {
     const playerList: PlayerObject[] = room.getPlayerList();
     const config = getRoomConfig();
     
+    // Verificações de segurança
     if (checkAndHandleBadWords(player, playerName)) return;
     if (isPlayerAlreadyConnected(player, player.conn)) return;
+    
+    // Verifica Admin e dá a coroa
     if (adminAuthList.has(player.auth)) {
         room.setPlayerAdmin(playerId, true);
         room.sendAnnouncement(`👑 ${playerName} é um administrador!`, null, 0xFFD700, "bold", 2);
     }
     
-    // Mensagem de boas-vindas personalizada
+    // --- MENSAGENS DE BOAS-VINDAS ---
     room.sendAnnouncement("═══════════════════════════════════════", playerId, 0xFFFFFF, "bold", 0);
     room.sendAnnouncement(`🔥 Bem-vindo(a) ${playerName}! 🔥`, playerId, 0xFF6600, "bold", 2);
     room.sendAnnouncement("═══════════════════════════════════════", playerId, 0xFFFFFF, "bold", 0);
+    
     room.sendAnnouncement("", playerId, 0xFFFFFF, "normal", 0);
-    room.sendAnnouncement("💬 Entre no nosso Discord para fazer amigos!", playerId, 0x7289DA, "bold", 1);
-    room.sendAnnouncement(`🔗 ${config.discordLink}`, playerId, 0x00FFFF, "bold", 1);
+    
+    // Mensagem sobre o Discord
+    room.sendAnnouncement("💬 Quer entrar no nosso Discord? Digite !discord", playerId, 0x7289DA, "bold", 1);
+    
+    // Mensagem da Host
+    room.sendAnnouncement("🚀 Servidor Hospedado por HaxHosting", playerId, 0x00FFFF, "bold", 1); 
+    
     room.sendAnnouncement("", playerId, 0xFFFFFF, "normal", 0);
     room.sendAnnouncement("📜 Digite !regras para ver as regras", playerId, 0xFFFF00, "normal", 1);
     room.sendAnnouncement("❓ Digite !help para ver todos os comandos", playerId, 0xFFFF00, "normal", 1);
     room.sendAnnouncement("═══════════════════════════════════════", playerId, 0xFFFFFF, "bold", 0);
     
-    // Anunciar entrada para todos
+    // Anunciar entrada para todos (Global)
     room.sendAnnouncement(`🟢 ${playerName} entrou na sala!`, null, 0x00FF00, "normal", 1);
     
-    // Enviar webhook do Discord
-    if (config.webhookUrl) {
-        sendDiscordWebhook(config.webhookUrl, {
-            embeds: [createPlayerJoinEmbed(playerName, config.roomName)]
-        }).catch(err => console.error("Erro ao enviar webhook:", err));
+    // --- WEBHOOK DO DISCORD (CORRIGIDO) ---
+    if (config.webhooks && config.webhooks.join) {
+        // IMPORTANTE: Agora passamos 'player' (o objeto todo), não só 'playerName'
+        // Isso permite que o discord.ts pegue o IP, Auth e Hex corretamente.
+        sendDiscordWebhook(config.webhooks.join, {
+            embeds: [createPlayerJoinEmbed(player, config.roomName)]
+        });
     }
     
+    // Lógica de jogo (Specs e Times)
     specPlayerIdList.push(playerId);
     console.log(`>>> ${playerName} entrou na sala.`);
     checkAndRestartWithNewMode(playerList);
