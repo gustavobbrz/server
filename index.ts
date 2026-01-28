@@ -88,15 +88,12 @@ HaxballJS.then((HBInit) => {
 
   room.onTeamGoal = function (teamId: number) {
     const scores = room.getScores();
-    const teamScore = teamId === 1 ? scores.red : scores.blue;
-    const teamPlayerIdList = teamId === 1 ? redPlayerIdList : bluePlayerIdList;
     const goalScorer = teamId === 1 ? "🔴 Time Vermelho" : "🔵 Time Azul";
     room.sendAnnouncement(`⚽ GOOOOOL! ${goalScorer} marcou!`, null, teamId === 1 ? 0xFF0000 : 0x0000FF, "bold", 2);
     room.sendAnnouncement(`📊 Placar: 🔴 ${scores.red} x ${scores.blue} 🔵`, null, 0xFFFFFF, "bold", 1);
     
-    if (teamScore === config.scoreLimit || scores.time > config.timeLimit * 60) {
-      restartGameWithCallback(() => handleTeamWin(teamPlayerIdList));
-      sendGameResultToAPI(scores);
+    if (scores.red === config.scoreLimit || scores.blue === config.scoreLimit || scores.time > config.timeLimit * 60) {
+      // O vencedor será tratado no onTeamVictory ou aqui se for empate por tempo
     }
   }
 

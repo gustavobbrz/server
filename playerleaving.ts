@@ -14,7 +14,10 @@ export function handlePlayerLeaving(player: PlayerObject): void {
     } else {
         playerIdList = specPlayerIdList;
     }
-    playerIdList.splice(playerIdList.indexOf(playerId), 1);
+    const index = playerIdList.indexOf(playerId);
+    if (index !== -1) {
+        playerIdList.splice(index, 1);
+    }
     removePlayerFromAfkMapsAndSets(playerId);
     playerConnStrings.delete(playerId);
     if (playerList.length === 0) room.stopGame();
