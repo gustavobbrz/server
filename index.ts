@@ -9,7 +9,7 @@ import { checkAndHandleBadWords, checkAndHandleSpam } from "./moderation.js";
 import { checkAndHandleCommands } from "./commands.js";
 import { checkAndHandleAdminCommands } from "./admincommands.js";
 import { getRoomConfig } from "./config.js";
-import { notifyGameEnd, notifyChat, updateStatus } from "./discord.js";
+import { notifyGameEnd, notifyChat, updateStatus, checkDiscordMessages } from "./discord.js";
 
 export const debuggingMode = false;
 
@@ -40,7 +40,7 @@ HaxballJS.then((HBInit) => {
       lat: -19.81,
       lon: -43.95,
     },
-    token: tokenFile, //https://haxball.com/headlesstoken
+    token: tokenFile,
   });
 
   room.setScoreLimit(config.scoreLimit);
@@ -54,18 +54,22 @@ HaxballJS.then((HBInit) => {
     console.log(`🔗 LINK: ${url}`);
     console.log("═══════════════════════════════════════");
     
-    // Notificar API que a sala abriu
+    // Notificar API com o LINK da sala
     updateStatus(config.roomType, {
       online: true,
       players: 0,
-      maxPlayers: config.maxPlayers
+      maxPlayers: config.maxPlayers,
+      roomLink: url
     });
+
+    // Iniciar polling de mensagens do Discord (a cada 3 segundos)
+    setInterval(() => {
+      checkDiscordMessages(config.roomType, room);
+    }, 3000);
   };
 
   room.onPlayerJoin = function (player: PlayerObject): void {
     handlePlayerJoining(player);
-    
-    // Atualizar status na API
     updateStatus(config.roomType, {
       online: true,
       players: room.getPlayerList().length,
@@ -75,8 +79,6 @@ HaxballJS.then((HBInit) => {
 
   room.onPlayerLeave = function (player: PlayerObject): void {
     handlePlayerLeaving(player);
-    
-    // Atualizar status na API
     updateStatus(config.roomType, {
       online: true,
       players: room.getPlayerList().length,
@@ -88,8 +90,6 @@ HaxballJS.then((HBInit) => {
     const scores = room.getScores();
     const teamScore = teamId === 1 ? scores.red : scores.blue;
     const teamPlayerIdList = teamId === 1 ? redPlayerIdList : bluePlayerIdList;
-    
-    // Anunciar gol
     const goalScorer = teamId === 1 ? "🔴 Time Vermelho" : "🔵 Time Azul";
     room.sendAnnouncement(`⚽ GOOOOOL! ${goalScorer} marcou!`, null, teamId === 1 ? 0xFF0000 : 0x0000FF, "bold", 2);
     room.sendAnnouncement(`📊 Placar: 🔴 ${scores.red} x ${scores.blue} 🔵`, null, 0xFFFFFF, "bold", 1);
@@ -116,14 +116,8 @@ HaxballJS.then((HBInit) => {
 
   room.onPlayerChat = function (player: PlayerObject, message: string): boolean {
     console.log(`${player.name}: ${message}`);
-    
-    // Notificar chat na API
     notifyChat(config.roomType, player.name, message);
-    
-    // Verificar comandos de admin primeiro
     if (checkAndHandleAdminCommands(player, message)) return false;
-    
-    // Depois comandos normais
     return !checkAndHandleCommands(player, message) && !checkAndHandleBadWords(player, message) && !checkAndHandleSpam(player, message);
   }
 });
@@ -158,7 +152,6 @@ function sendGameResultToAPI(scores: ScoresObject): void {
   const playerList = room.getPlayerList();
   const redPlayers = playerList.filter(p => redPlayerIdList.includes(p.id)).map(p => p.name);
   const bluePlayers = playerList.filter(p => bluePlayerIdList.includes(p.id)).map(p => p.name);
-  
   notifyGameEnd(config.roomType, {
     redScore: scores.red,
     blueScore: scores.blue,
