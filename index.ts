@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import HaxballJS from "haxball.js";
 import * as fs from "fs";
 import { handlePlayerActivity, checkAndHandleInactivePlayers } from "./afkdetection.js";
@@ -36,8 +37,8 @@ HaxballJS.then((HBInit) => {
     noPlayer: true,
     geo: {
       code: "BR",
-      lat: -23.51634162,
-      lon: -46.6460824,
+      lat: -19.81,
+      lon: -43.95,
     },
     token: tokenFile, //https://haxball.com/headlesstoken
   });
