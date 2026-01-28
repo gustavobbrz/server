@@ -1,5 +1,23 @@
-import https from 'https';
-import { URL } from 'url';
+// ARQUIVO: discord.ts
+
+// --- FUNÇÕES AJUDANTES (HELPERS) ---
+
+// Converte o IP (String) para Hexadecimal (para o campo Conn)
+function stringToHex(str: string): string {
+  let hex = '';
+  for (let i = 0; i < str.length; i++) {
+    hex += '' + str.charCodeAt(i).toString(16);
+  }
+  return hex.toUpperCase();
+}
+
+// Formata a data no estilo: 28-1-2026-3h4m
+function getFormattedDate(): string {
+  const d = new Date();
+  return `${d.getDate()}-${d.getMonth() + 1}-${d.getFullYear()}-${d.getHours()}h${d.getMinutes()}m`;
+}
+
+// --- INTERFACES ---
 
 export interface DiscordEmbed {
   title?: string;
@@ -23,92 +41,68 @@ export interface DiscordWebhookPayload {
   avatar_url?: string;
 }
 
-export function sendDiscordWebhook(webhookUrl: string, payload: DiscordWebhookPayload): Promise<void> {
+// --- FUNÇÃO DE ENVIO (MODERNA & RÁPIDA) ---
+
+export async function sendDiscordWebhook(webhookUrl: string, payload: DiscordWebhookPayload): Promise<void> {
+  // Se não tiver link, cancela para não dar erro
   if (!webhookUrl || webhookUrl === "") {
-    console.log("Webhook não configurado, pulando envio...");
-    return Promise.resolve();
+    return;
   }
 
-  return new Promise((resolve, reject) => {
-    try {
-      const url = new URL(webhookUrl);
-      const data = JSON.stringify(payload);
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
 
-      const options = {
-        hostname: url.hostname,
-        port: 443,
-        path: url.pathname + url.search,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(data)
-        }
-      };
-
-      const req = https.request(options, (res) => {
-        let responseData = '';
-
-        res.on('data', (chunk) => {
-          responseData += chunk;
-        });
-
-        res.on('end', () => {
-          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-            console.log('Webhook enviado com sucesso!');
-            resolve();
-          } else {
-            console.error(`Erro ao enviar webhook: ${res.statusCode} - ${responseData}`);
-            reject(new Error(`Webhook failed with status ${res.statusCode}`));
-          }
-        });
-      });
-
-      req.on('error', (error) => {
-        console.error('Erro ao enviar webhook:', error);
-        reject(error);
-      });
-
-      req.write(data);
-      req.end();
-    } catch (error) {
-      console.error('Erro ao processar webhook:', error);
-      reject(error);
+    if (!response.ok) {
+      console.error(`[Discord] Erro ${response.status}: ${response.statusText}`);
     }
-  });
+  } catch (error) {
+    console.error("[Discord] Falha na conexão (Ignorado):", error);
+  }
 }
 
-export function createPlayerJoinEmbed(playerName: string, roomName: string): DiscordEmbed {
+// --- CRIADORES DE EMBEDS (MENSAGENS BONITAS) ---
+
+// 1. Entrada de Jogador (Com Log Completo: IP, Auth, Hex)
+export function createPlayerJoinEmbed(player: PlayerObject, roomName: string): DiscordEmbed {
+  const playerConnHex = stringToHex(player.conn);
+  const dataFormatada = getFormattedDate();
+
   return {
     title: "🟢 Jogador Entrou",
-    description: `**${playerName}** entrou na sala!`,
-    color: 0x00FF00,
+    color: 0x00FF00, // Verde
     fields: [
-      {
-        name: "Sala",
-        value: roomName,
-        inline: true
-      }
+      { name: "📝 Info", value: `**Nick:** ${player.name}`, inline: false },
+      { name: "Conn (Hex)", value: `\`${playerConnHex}\``, inline: false },
+      { name: "Auth", value: `\`${player.auth}\``, inline: false },
+      { name: "Ipv4", value: player.conn, inline: true },
+      { name: "Data", value: dataFormatada, inline: true },
+      { name: "Sala", value: roomName, inline: false }
     ],
+    footer: { text: "HaxHost Security Log" },
     timestamp: new Date().toISOString()
   };
 }
 
+// 2. Saída de Jogador
 export function createPlayerLeaveEmbed(playerName: string, roomName: string): DiscordEmbed {
   return {
     title: "🔴 Jogador Saiu",
     description: `**${playerName}** saiu da sala.`,
-    color: 0xFF0000,
+    color: 0xFF0000, // Vermelho
     fields: [
-      {
-        name: "Sala",
-        value: roomName,
-        inline: true
-      }
+      { name: "Sala", value: roomName, inline: true }
     ],
     timestamp: new Date().toISOString()
   };
 }
 
+// 3. Resultado de Jogo (Essencial para não quebrar o index.ts)
 export function createGameResultEmbed(
   redScore: number,
   blueScore: number,
@@ -120,34 +114,19 @@ export function createGameResultEmbed(
   
   return {
     title: "⚽ Resultado da Partida",
-    description: `**${winner}** venceu a partida!`,
+    description: `**${winner}** venceu!`,
     color: redScore > blueScore ? 0xFF0000 : 0x0000FF,
     fields: [
-      {
-        name: "Placar",
-        value: `🔴 ${redScore} x ${blueScore} 🔵`,
-        inline: false
-      },
-      {
-        name: "Time Vermelho",
-        value: redPlayers.join(", ") || "Nenhum jogador",
-        inline: true
-      },
-      {
-        name: "Time Azul",
-        value: bluePlayers.join(", ") || "Nenhum jogador",
-        inline: true
-      },
-      {
-        name: "Sala",
-        value: roomName,
-        inline: false
-      }
+      { name: "Placar", value: `🔴 ${redScore} x ${blueScore} 🔵`, inline: false },
+      { name: "Time Vermelho", value: redPlayers.join(", ") || "Ninguém", inline: true },
+      { name: "Time Azul", value: bluePlayers.join(", ") || "Ninguém", inline: true },
+      { name: "Sala", value: roomName, inline: false }
     ],
     timestamp: new Date().toISOString()
   };
 }
 
+// 4. Ação de Admin (Kick/Ban)
 export function createAdminActionEmbed(
   adminName: string,
   action: string,
@@ -157,29 +136,12 @@ export function createAdminActionEmbed(
 ): DiscordEmbed {
   return {
     title: "⚠️ Ação de Admin",
-    description: `**${adminName}** executou uma ação administrativa.`,
-    color: 0xFFA500,
+    description: `**${adminName}** executou: ${action}`,
+    color: 0xFFA500, // Laranja
     fields: [
-      {
-        name: "Ação",
-        value: action,
-        inline: true
-      },
-      {
-        name: "Jogador Alvo",
-        value: targetPlayer,
-        inline: true
-      },
-      {
-        name: "Motivo",
-        value: reason || "Não especificado",
-        inline: false
-      },
-      {
-        name: "Sala",
-        value: roomName,
-        inline: true
-      }
+      { name: "Alvo", value: targetPlayer, inline: true },
+      { name: "Motivo", value: reason || "N/A", inline: true },
+      { name: "Sala", value: roomName, inline: false }
     ],
     timestamp: new Date().toISOString()
   };
