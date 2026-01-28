@@ -4,51 +4,108 @@ export interface RoomConfig {
   scoreLimit: number;
   timeLimit: number;
   discordLink: string;
-  webhookUrl?: string;
+  port: number;
+  geo: {
+    code: string;
+    lat: number;
+    lon: number;
+  };
+  webhooks: {
+    join: string;
+    leave: string;
+    game: string;
+    admin: string;
+  };
   roomType: 'x1' | 'x3-nivel' | 'x3-noobs' | 'x4';
 }
 
 export const roomConfigs: Record<string, RoomConfig> = {
   'x3-nivel': {
-    roomName: "🔥HAX HOST🔥 FUTSAL X3 NIVEL 🔥",
+    roomName: "🥦 HAXHOST | FUTSAL X3 | NÍVEL 🥦",
     maxPlayers: 30,
     scoreLimit: 3,
     timeLimit: 3,
-    discordLink: "https://discord.gg/SEU_LINK_AQUI",
-    webhookUrl: process.env.WEBHOOK_X3_NIVEL || "",
+    discordLink: "https://discord.gg/vHwf9s7U6F",
+    port: 3000,
+    geo: { code: "BR", lat: -23.5475, lon: -46.6361 }, // SP Data Center
+    webhooks: {
+      join: process.env.WEBHOOK_X3_NIVEL_JOIN || "",
+      leave: process.env.WEBHOOK_X3_NIVEL_LEAVE || "",
+      game: process.env.WEBHOOK_X3_NIVEL_GAME || "",
+      admin: process.env.WEBHOOK_X3_NIVEL_ADMIN || ""
+    },
     roomType: 'x3-nivel'
   },
   'x3-noobs': {
-    roomName: "🔥HAX HOST🔥 FUTSAL X3 NOOBS🔥",
+    roomName: "🥦 HAXHOST | FUTSAL X3 | NOOBS 🥦",
     maxPlayers: 30,
     scoreLimit: 3,
     timeLimit: 3,
-    discordLink: "https://discord.gg/SEU_LINK_AQUI",
-    webhookUrl: process.env.WEBHOOK_X3_NOOBS || "",
+    discordLink: "https://discord.gg/vHwf9s7U6F",
+    port: 3001,
+    geo: { code: "BR", lat: -23.5475, lon: -46.6361 }, // SP Data Center
+    webhooks: {
+      join: process.env.WEBHOOK_X3_NOOBS_JOIN || "",
+      leave: process.env.WEBHOOK_X3_NOOBS_LEAVE || "",
+      game: process.env.WEBHOOK_X3_NOOBS_GAME || "",
+      admin: process.env.WEBHOOK_X3_NOOBS_ADMIN || ""
+    },
     roomType: 'x3-noobs'
   },
   'x1': {
-    roomName: "🔥HAX HOST🔥 FUTSAL X1 🔥",
+    roomName: "🥦 HAXHOST | FUTSAL X1 | 🥦",
     maxPlayers: 20,
     scoreLimit: 3,
     timeLimit: 3,
-    discordLink: "https://discord.gg/SEU_LINK_AQUI",
-    webhookUrl: process.env.WEBHOOK_X1 || "",
+    discordLink: "https://discord.gg/vHwf9s7U6F",
+    port: 3002,
+    geo: { code: "BR", lat: -23.5475, lon: -46.6361 }, // SP Data Center
+    webhooks: {
+      join: process.env.WEBHOOK_X1_JOIN || "",
+      leave: process.env.WEBHOOK_X1_LEAVE || "",
+      game: process.env.WEBHOOK_X1_GAME || "",
+      admin: process.env.WEBHOOK_X1_ADMIN || ""
+    },
     roomType: 'x1'
   },
   'x4': {
-    roomName: "🔥HAX HOST 🔥FUTSAL X4  🔥",
-    maxPlayers: 40,
+    roomName: "🥦 HAXHOST | FUTSAL X4 | 🥦",
+    maxPlayers: 22,
     scoreLimit: 3,
-    timeLimit: 4,
-    discordLink: "https://discord.gg/SEU_LINK_AQUI",
-    webhookUrl: process.env.WEBHOOK_X4 || "",
+    timeLimit: 5,
+    discordLink: "https://discord.gg/vHwf9s7U6F",
+    port: 3003,
+    geo: { code: "BR", lat: -23.5475, lon: -46.6361 }, // SP Data Center
+    webhooks: {
+      join: process.env.WEBHOOK_X4_JOIN || "",
+      leave: process.env.WEBHOOK_X4_LEAVE || "",
+      game: process.env.WEBHOOK_X4_GAME || "",
+      admin: process.env.WEBHOOK_X4_ADMIN || ""
+    },
     roomType: 'x4'
   }
 };
 
-// Pegar configuração da sala baseado em variável de ambiente
+// ==========================================================
+// NÃO ESQUEÇA DE COPIAR ESSA PARTE FINAL AQUI EMBAIXO !!!
+// É ELA QUE ARRUMA O SEU ERRO!
+// ==========================================================
 export function getRoomConfig(): RoomConfig {
-  const roomType = process.env.ROOM_TYPE || 'x3-nivel';
-  return roomConfigs[roomType] || roomConfigs['x3-nivel'];
+  const args = process.argv.slice(2);
+  
+  // Tenta achar a sala pelos argumentos (ex: npm start x4)
+  for (const arg of args) {
+    if (roomConfigs[arg]) {
+      return roomConfigs[arg];
+    }
+  }
+
+  // Tenta achar pela variável de ambiente do Pterodactyl
+  if (process.env.ROOM_TYPE && roomConfigs[process.env.ROOM_TYPE]) {
+    return roomConfigs[process.env.ROOM_TYPE];
+  }
+
+  // Se não achar nada, usa x1 pra não crashar
+  console.log("⚠️ Nenhuma sala especificada. Usando X1 como padrão.");
+  return roomConfigs['x1'];
 }
