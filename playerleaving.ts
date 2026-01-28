@@ -1,41 +1,78 @@
-import { removePlayerFromAfkMapsAndSets } from "./afkdetection.js";
-import { specPlayerIdList, playerConnStrings, redPlayerIdList, bluePlayerIdList, room, pauseUnpauseGame, restartGameWithCallback } from "./index.js";
-import { movePlayerToTeam, moveLastOppositeTeamMemberToSpec } from "./teammanagement.js";
-import { notifyPlayerLeave } from "./discord.js";
-import { getRoomConfig } from "./config.js";
+// ARQUIVO: discord.ts - Refatorado para usar API REST Arena Cup e Chat Bidirecional
 
-export function handlePlayerLeaving(player: PlayerObject): void {
-    const playerId: number = player.id;
-    let playerIdList: number[] = [];
-    const playerList = room.getPlayerList();
-    if (redPlayerIdList.includes(playerId) || bluePlayerIdList.includes(playerId)) {
-        playerIdList = redPlayerIdList.includes(playerId) ? redPlayerIdList : bluePlayerIdList;
-        if (playerList.length !== 0) handleTeamPlayerLeaving(playerIdList, playerList);
-    } else {
-        playerIdList = specPlayerIdList;
+const API_URL = 'http://54.232.83.230:3005';
+
+// --- FUNÇÕES AJUDANTES (HELPERS) ---
+
+export async function callRoomAPI(roomId: string, endpoint: string, data: any): Promise<any> {
+  try {
+    const response = await fetch(`${API_URL}/api/rooms/${roomId}${endpoint}`, {
+      method: data ? 'POST' : 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+
+    if (!response.ok) {
+      console.error(`[API] Erro ${response.status}: ${response.statusText}`);
+      return null;
     }
-    const index = playerIdList.indexOf(playerId);
-    if (index !== -1) {
-        playerIdList.splice(index, 1);
-    }
-    removePlayerFromAfkMapsAndSets(playerId);
-    playerConnStrings.delete(playerId);
-    if (playerList.length === 0) room.stopGame();
-    console.log(`>>> ${player.name} saiu da sala.`);
-    
-    // Notificar API
-    const config = getRoomConfig();
-    notifyPlayerLeave(config.roomType, player);
+    return await response.json();
+  } catch (error) {
+    console.error("[API] Falha na conexão:", error);
+    return null;
+  }
 }
 
-function handleTeamPlayerLeaving(teamPlayerIdList: number[], playerList: PlayerObject[]) {
-    const oppositeTeamPlayerIdList: number[] = teamPlayerIdList === redPlayerIdList ? bluePlayerIdList : redPlayerIdList;
-    if (playerList.length === 1) {
-        restartGameWithCallback(() => movePlayerToTeam(playerList[0]!.id, redPlayerIdList));
-    } else if (specPlayerIdList.length === 0) {
-        restartGameWithCallback(() => moveLastOppositeTeamMemberToSpec(oppositeTeamPlayerIdList));
-    } else {
-        movePlayerToTeam(specPlayerIdList[0]!, teamPlayerIdList);
-        pauseUnpauseGame();
-    }
+// --- INTEGRAÇÃO COM EVENTOS (Haxball -> Discord) ---
+
+export function notifyPlayerJoin(roomId: string, player: PlayerObject): void {
+  callRoomAPI(roomId, '/events/player-join', {
+    playerName: player.name,
+    auth: player.auth,
+    ip: player.conn.split('.')[0],
+    conn: player.conn
+  });
+}
+
+export function notifyPlayerLeave(roomId: string, player: PlayerObject): void {
+  callRoomAPI(roomId, '/events/player-leave', {
+    playerName: player.name,
+    reason: 'Saiu da sala'
+  });
+}
+
+export function notifyGameEnd(roomId: string, stats: any): void {
+  callRoomAPI(roomId, '/events/game-end', stats);
+}
+
+export function notifyAdminAction(roomId: string, data: any): void {
+  callRoomAPI(roomId, '/events/admin-action', data);
+}
+
+export function notifyChat(roomId: string, playerName: string, message: string): void {
+  if (message.startsWith('!')) return;
+  callRoomAPI(roomId, '/events/chat', { playerName, message });
+}
+
+export function notifyReport(roomId: string, data: any): void {
+  callRoomAPI(roomId, '/events/report', data);
+}
+
+export function updateStatus(roomId: string, data: any): void {
+  callRoomAPI(roomId, '/status', data);
+}
+
+// --- INTEGRAÇÃO COM MENSAGENS (Discord -> Haxball) ---
+
+export async function checkDiscordMessages(roomId: string, room: RoomObject): Promise<void> {
+  const result = await callRoomAPI(roomId, '/pending-messages', null);
+  if (result && result.success && result.messages) {
+    result.messages.forEach((msg: any) => {
+      const prefix = msg.isAnnouncement ? "📢 [ANÚNCIO]" : "💬 [DISCORD]";
+      const color = msg.isAnnouncement ? 0xFFFF00 : 0x7289DA;
+      room.sendAnnouncement(`${prefix} ${msg.user}: ${msg.message}`, null, color, "bold", 1);
+    });
+  }
 }
