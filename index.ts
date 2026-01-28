@@ -133,13 +133,13 @@ export function pauseUnpauseGame() {
 }
 
 function sendGameResultWebhook(scores: ScoresObject): void {
-  if (!config.webhookUrl) return;
+  if (!config.webhooks || !config.webhooks.game) return;
   
   const playerList = room.getPlayerList();
   const redPlayers = playerList.filter(p => redPlayerIdList.includes(p.id)).map(p => p.name);
   const bluePlayers = playerList.filter(p => bluePlayerIdList.includes(p.id)).map(p => p.name);
   
-  sendDiscordWebhook(config.webhookUrl, {
+  sendDiscordWebhook(config.webhooks.game, {
     embeds: [createGameResultEmbed(scores.red, scores.blue, redPlayers, bluePlayers, config.roomName)]
   }).catch(err => console.error("Erro ao enviar webhook:", err));
 }

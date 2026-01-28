@@ -15,8 +15,8 @@ export interface RoomConfig {
     leave: string;
     game: string;
     admin: string;
-    denuncias: string;
-    chat: string;
+    denuncias: string;  // Novo: canal de denúncias
+    chat: string;       // Novo: canal de chat da sala
   };
   roomType: 'x1' | 'x3-nivel' | 'x3-noobs' | 'x4';
 }

@@ -22,8 +22,8 @@ export function handlePlayerLeaving(player: PlayerObject): void {
     
     // Enviar webhook do Discord
     const config = getRoomConfig();
-    if (config.webhookUrl) {
-        sendDiscordWebhook(config.webhookUrl, {
+    if (config.webhooks && config.webhooks.leave) {
+        sendDiscordWebhook(config.webhooks.leave, {
             embeds: [createPlayerLeaveEmbed(player.name, config.roomName)]
         }).catch(err => console.error("Erro ao enviar webhook:", err));
     }

@@ -41,8 +41,8 @@ const adminCommands: AdminCommand[] = [
             
             // Enviar webhook
             const config = getRoomConfig();
-            if (config.webhookUrl) {
-                sendDiscordWebhook(config.webhookUrl, {
+            if (config.webhooks && config.webhooks.admin) {
+                sendDiscordWebhook(config.webhooks.admin, {
                     embeds: [createAdminActionEmbed(player.name, "Kick", targetPlayer.name, reason, config.roomName)]
                 }).catch(console.error);
             }
@@ -78,8 +78,8 @@ const adminCommands: AdminCommand[] = [
             
             // Enviar webhook
             const config = getRoomConfig();
-            if (config.webhookUrl) {
-                sendDiscordWebhook(config.webhookUrl, {
+            if (config.webhooks && config.webhooks.admin) {
+                sendDiscordWebhook(config.webhooks.admin, {
                     embeds: [createAdminActionEmbed(player.name, "Ban", targetPlayer.name, reason, config.roomName)]
                 }).catch(console.error);
             }

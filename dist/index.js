@@ -27,6 +27,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.pauseUnpauseGame = exports.restartGameWithCallback = exports.room = exports.bluePlayerIdList = exports.redPlayerIdList = exports.specPlayerIdList = exports.badWordList = exports.adminAuthList = exports.playerConnStrings = exports.debuggingMode = void 0;
+require("dotenv/config");
 const haxball_js_1 = __importDefault(require("haxball.js"));
 const fs = __importStar(require("fs"));
 const afkdetection_js_1 = require("./afkdetection.js");
@@ -58,8 +59,8 @@ haxball_js_1.default.then((HBInit) => {
         noPlayer: true,
         geo: {
             code: "BR",
-            lat: -23.51634162,
-            lon: -46.6460824,
+            lat: -19.81,
+            lon: -43.95,
         },
         token: tokenFile, //https://haxball.com/headlesstoken
     });
@@ -144,12 +145,12 @@ function pauseUnpauseGame() {
 }
 exports.pauseUnpauseGame = pauseUnpauseGame;
 function sendGameResultWebhook(scores) {
-    if (!config.webhookUrl)
+    if (!config.webhooks || !config.webhooks.game)
         return;
     const playerList = exports.room.getPlayerList();
     const redPlayers = playerList.filter(p => exports.redPlayerIdList.includes(p.id)).map(p => p.name);
     const bluePlayers = playerList.filter(p => exports.bluePlayerIdList.includes(p.id)).map(p => p.name);
-    (0, discord_js_1.sendDiscordWebhook)(config.webhookUrl, {
+    (0, discord_js_1.sendDiscordWebhook)(config.webhooks.game, {
         embeds: [(0, discord_js_1.createGameResultEmbed)(scores.red, scores.blue, redPlayers, bluePlayers, config.roomName)]
     }).catch(err => console.error("Erro ao enviar webhook:", err));
 }
