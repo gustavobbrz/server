@@ -1,7 +1,7 @@
 import { room, specPlayerIdList, debuggingMode, playerConnStrings, adminAuthList, redPlayerIdList, restartGameWithCallback, bluePlayerIdList } from "./index.js";
 import { checkAndHandleBadWords } from "./moderation.js";
 import { movePlayerToTeam, moveOneSpecToEachTeam } from "./teammanagement.js";
-import { sendDiscordWebhook, createPlayerJoinEmbed } from "./discord.js";
+import { notifyPlayerJoin } from "./discord.js";
 import { getRoomConfig } from "./config.js";
 
 export function handlePlayerJoining(player: PlayerObject): void {
@@ -41,14 +41,8 @@ export function handlePlayerJoining(player: PlayerObject): void {
     // Anunciar entrada para todos (Global)
     room.sendAnnouncement(`🟢 ${playerName} entrou na sala!`, null, 0x00FF00, "normal", 1);
     
-    // --- WEBHOOK DO DISCORD (CORRIGIDO) ---
-    if (config.webhooks && config.webhooks.join) {
-        // IMPORTANTE: Agora passamos 'player' (o objeto todo), não só 'playerName'
-        // Isso permite que o discord.ts pegue o IP, Auth e Hex corretamente.
-        sendDiscordWebhook(config.webhooks.join, {
-            embeds: [createPlayerJoinEmbed(player, config.roomName)]
-        });
-    }
+    // --- NOTIFICAR API ---
+    notifyPlayerJoin(config.roomType, player);
     
     // Lógica de jogo (Specs e Times)
     specPlayerIdList.push(playerId);

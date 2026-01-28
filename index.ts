@@ -9,7 +9,7 @@ import { checkAndHandleBadWords, checkAndHandleSpam } from "./moderation.js";
 import { checkAndHandleCommands } from "./commands.js";
 import { checkAndHandleAdminCommands } from "./admincommands.js";
 import { getRoomConfig } from "./config.js";
-import { sendDiscordWebhook, createGameResultEmbed } from "./discord.js";
+import { notifyGameEnd, notifyChat, updateStatus } from "./discord.js";
 
 export const debuggingMode = false;
 
@@ -53,14 +53,35 @@ HaxballJS.then((HBInit) => {
     console.log(`🔥 SALA: ${config.roomName}`);
     console.log(`🔗 LINK: ${url}`);
     console.log("═══════════════════════════════════════");
+    
+    // Notificar API que a sala abriu
+    updateStatus(config.roomType, {
+      online: true,
+      players: 0,
+      maxPlayers: config.maxPlayers
+    });
   };
 
   room.onPlayerJoin = function (player: PlayerObject): void {
     handlePlayerJoining(player);
+    
+    // Atualizar status na API
+    updateStatus(config.roomType, {
+      online: true,
+      players: room.getPlayerList().length,
+      maxPlayers: config.maxPlayers
+    });
   }
 
   room.onPlayerLeave = function (player: PlayerObject): void {
     handlePlayerLeaving(player);
+    
+    // Atualizar status na API
+    updateStatus(config.roomType, {
+      online: true,
+      players: room.getPlayerList().length,
+      maxPlayers: config.maxPlayers
+    });
   }
 
   room.onTeamGoal = function (teamId: number) {
@@ -75,16 +96,14 @@ HaxballJS.then((HBInit) => {
     
     if (teamScore === config.scoreLimit || scores.time > config.timeLimit * 60) {
       restartGameWithCallback(() => handleTeamWin(teamPlayerIdList));
-      sendGameResultWebhook(scores);
+      sendGameResultToAPI(scores);
     }
   }
 
-  //triggers *only* when a team is winning and the timer runs out, 
-  //because the room is also listening for the onTeamGoal event, which triggers first
   room.onTeamVictory = function (scores: ScoresObject): void {
     const teamPlayerIdList = scores.red > scores.blue ? redPlayerIdList : bluePlayerIdList;
     restartGameWithCallback(() => handleTeamWin(teamPlayerIdList));
-    sendGameResultWebhook(scores);
+    sendGameResultToAPI(scores);
   }
 
   room.onPlayerActivity = function (player: PlayerObject): void {
@@ -97,6 +116,9 @@ HaxballJS.then((HBInit) => {
 
   room.onPlayerChat = function (player: PlayerObject, message: string): boolean {
     console.log(`${player.name}: ${message}`);
+    
+    // Notificar chat na API
+    notifyChat(config.roomType, player.name, message);
     
     // Verificar comandos de admin primeiro
     if (checkAndHandleAdminCommands(player, message)) return false;
@@ -132,14 +154,16 @@ export function pauseUnpauseGame() {
   room.pauseGame(false);
 }
 
-function sendGameResultWebhook(scores: ScoresObject): void {
-  if (!config.webhooks || !config.webhooks.game) return;
-  
+function sendGameResultToAPI(scores: ScoresObject): void {
   const playerList = room.getPlayerList();
   const redPlayers = playerList.filter(p => redPlayerIdList.includes(p.id)).map(p => p.name);
   const bluePlayers = playerList.filter(p => bluePlayerIdList.includes(p.id)).map(p => p.name);
   
-  sendDiscordWebhook(config.webhooks.game, {
-    embeds: [createGameResultEmbed(scores.red, scores.blue, redPlayers, bluePlayers, config.roomName)]
-  }).catch(err => console.error("Erro ao enviar webhook:", err));
+  notifyGameEnd(config.roomType, {
+    redScore: scores.red,
+    blueScore: scores.blue,
+    redPlayers: redPlayers,
+    bluePlayers: bluePlayers,
+    duration: Math.floor(scores.time)
+  });
 }

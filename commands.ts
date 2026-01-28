@@ -1,13 +1,14 @@
 import { room } from "./index.js";
 import { getRoomConfig } from "./config.js";
 import { getAdminCommandsList } from "./admincommands.js";
+import { notifyReport } from "./discord.js";
 
 interface Command {
     name: string;
     description: string;
     emoji: string;
     adminOnly: boolean
-    response: (player: PlayerObject) => void;
+    response: (player: PlayerObject, args: string[]) => void;
 }
 
 const commands: Command[] = [
@@ -47,6 +48,30 @@ const commands: Command[] = [
             sendBoldWhiteAnnouncement(`🔗 ${config.discordLink}`, player.id);
             sendBoldWhiteAnnouncement("Venha conversar, fazer amigos e participar de eventos!", player.id);
             sendBoldWhiteAnnouncement("═══════════════════════════════", player.id);
+        }
+    },
+    {
+        name: "denunciar",
+        description: "denunciar um jogador para os admins",
+        emoji: "🚨",
+        adminOnly: false,
+        response: (player: PlayerObject, args: string[]) => {
+            if (args.length < 2) {
+                room.sendAnnouncement("❌ Uso: !denunciar <nome> <motivo>", player.id, 0xFF0000, "bold", 0);
+                return;
+            }
+            
+            const reportedName = args[0];
+            const reason = args.slice(1).join(" ");
+            const config = getRoomConfig();
+            
+            notifyReport(config.roomType, {
+                reporter: player.name,
+                reported: reportedName,
+                reason: reason
+            });
+            
+            room.sendAnnouncement("✅ Sua denúncia foi enviada para os administradores!", player.id, 0x00FF00, "bold", 1);
         }
     },
     {
@@ -120,13 +145,16 @@ const commands: Command[] = [
 
 export function checkAndHandleCommands(player: PlayerObject, message: string): boolean {
     if (!isCommand(message)) return false;
-    const commandMessage = message.substring(1).toLowerCase();
-    const command = commands.find((command) => command.name === commandMessage);
+    const parts = message.substring(1).split(" ");
+    const commandName = parts[0].toLowerCase();
+    const args = parts.slice(1);
+    
+    const command = commands.find((command) => command.name === commandName);
     if (!command) {
         room.sendAnnouncement("🚫 Esse comando não existe. Digite !help para ver a lista de comandos.", player.id, 0xFF0000, "bold", 0);
         return true;
     }
-    command.response(player);
+    command.response(player, args);
     return true;
 }
 

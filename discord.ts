@@ -1,4 +1,6 @@
-// ARQUIVO: discord.ts
+// ARQUIVO: discord.ts - Refatorado para usar API REST Arena Cup
+
+const API_URL = 'http://54.232.83.230:3005';
 
 // --- FUNÇÕES AJUDANTES (HELPERS) ---
 
@@ -9,12 +11,6 @@ function stringToHex(str: string): string {
     hex += '' + str.charCodeAt(i).toString(16);
   }
   return hex.toUpperCase();
-}
-
-// Formata a data no estilo: 28-1-2026-3h4m
-function getFormattedDate(): string {
-  const d = new Date();
-  return `${d.getDate()}-${d.getMonth() + 1}-${d.getFullYear()}-${d.getHours()}h${d.getMinutes()}m`;
 }
 
 // --- INTERFACES ---
@@ -41,108 +37,83 @@ export interface DiscordWebhookPayload {
   avatar_url?: string;
 }
 
-// --- FUNÇÃO DE ENVIO (MODERNA & RÁPIDA) ---
+// --- FUNÇÃO DE ENVIO PARA API ---
 
-export async function sendDiscordWebhook(webhookUrl: string, payload: DiscordWebhookPayload): Promise<void> {
-  // Se não tiver link, cancela para não dar erro
-  if (!webhookUrl || webhookUrl === "") {
-    return;
-  }
-
+export async function callRoomAPI(roomId: string, endpoint: string, data: any): Promise<void> {
   try {
-    const response = await fetch(webhookUrl, {
+    const response = await fetch(`${API_URL}/api/rooms/${roomId}${endpoint}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(data),
     });
 
     if (!response.ok) {
-      console.error(`[Discord] Erro ${response.status}: ${response.statusText}`);
+      console.error(`[API] Erro ${response.status}: ${response.statusText}`);
     }
   } catch (error) {
-    console.error("[Discord] Falha na conexão (Ignorado):", error);
+    console.error("[API] Falha na conexão:", error);
   }
 }
 
-// --- CRIADORES DE EMBEDS (MENSAGENS BONITAS) ---
+// --- INTEGRAÇÃO COM EVENTOS ---
 
-// 1. Entrada de Jogador (Com Log Completo: IP, Auth, Hex)
-export function createPlayerJoinEmbed(player: PlayerObject, roomName: string): DiscordEmbed {
-  const playerConnHex = stringToHex(player.conn);
-  const dataFormatada = getFormattedDate();
-
-  return {
-    title: "🟢 Jogador Entrou",
-    color: 0x00FF00, // Verde
-    fields: [
-      { name: "📝 Info", value: `**Nick:** ${player.name}`, inline: false },
-      { name: "Conn (Hex)", value: `\`${playerConnHex}\``, inline: false },
-      { name: "Auth", value: `\`${player.auth}\``, inline: false },
-      { name: "Ipv4", value: player.conn, inline: true },
-      { name: "Data", value: dataFormatada, inline: true },
-      { name: "Sala", value: roomName, inline: false }
-    ],
-    footer: { text: "HaxHost Security Log" },
-    timestamp: new Date().toISOString()
-  };
+export function notifyPlayerJoin(roomId: string, player: PlayerObject): void {
+  callRoomAPI(roomId, '/events/player-join', {
+    playerName: player.name,
+    auth: player.auth,
+    ip: player.conn.split('.')[0], // Proteção básica de IP
+    conn: player.conn
+  });
 }
 
-// 2. Saída de Jogador
-export function createPlayerLeaveEmbed(playerName: string, roomName: string): DiscordEmbed {
-  return {
-    title: "🔴 Jogador Saiu",
-    description: `**${playerName}** saiu da sala.`,
-    color: 0xFF0000, // Vermelho
-    fields: [
-      { name: "Sala", value: roomName, inline: true }
-    ],
-    timestamp: new Date().toISOString()
-  };
+export function notifyPlayerLeave(roomId: string, player: PlayerObject): void {
+  callRoomAPI(roomId, '/events/player-leave', {
+    playerName: player.name,
+    reason: 'Saiu da sala'
+  });
 }
 
-// 3. Resultado de Jogo (Essencial para não quebrar o index.ts)
-export function createGameResultEmbed(
-  redScore: number,
-  blueScore: number,
-  redPlayers: string[],
-  bluePlayers: string[],
-  roomName: string
-): DiscordEmbed {
-  const winner = redScore > blueScore ? "🔴 Time Vermelho" : "🔵 Time Azul";
-  
-  return {
-    title: "⚽ Resultado da Partida",
-    description: `**${winner}** venceu!`,
-    color: redScore > blueScore ? 0xFF0000 : 0x0000FF,
-    fields: [
-      { name: "Placar", value: `🔴 ${redScore} x ${blueScore} 🔵`, inline: false },
-      { name: "Time Vermelho", value: redPlayers.join(", ") || "Ninguém", inline: true },
-      { name: "Time Azul", value: bluePlayers.join(", ") || "Ninguém", inline: true },
-      { name: "Sala", value: roomName, inline: false }
-    ],
-    timestamp: new Date().toISOString()
-  };
+export function notifyGameEnd(roomId: string, stats: any): void {
+  callRoomAPI(roomId, '/events/game-end', {
+    redScore: stats.redScore,
+    blueScore: stats.blueScore,
+    redPlayers: stats.redPlayers,
+    bluePlayers: stats.bluePlayers,
+    duration: stats.duration
+  });
 }
 
-// 4. Ação de Admin (Kick/Ban)
-export function createAdminActionEmbed(
-  adminName: string,
-  action: string,
-  targetPlayer: string,
-  reason: string,
-  roomName: string
-): DiscordEmbed {
-  return {
-    title: "⚠️ Ação de Admin",
-    description: `**${adminName}** executou: ${action}`,
-    color: 0xFFA500, // Laranja
-    fields: [
-      { name: "Alvo", value: targetPlayer, inline: true },
-      { name: "Motivo", value: reason || "N/A", inline: true },
-      { name: "Sala", value: roomName, inline: false }
-    ],
-    timestamp: new Date().toISOString()
-  };
+export function notifyAdminAction(roomId: string, data: any): void {
+  callRoomAPI(roomId, '/events/admin-action', {
+    action: data.action,
+    targetPlayer: data.targetName,
+    adminPlayer: data.adminName,
+    reason: data.reason
+  });
+}
+
+export function notifyChat(roomId: string, playerName: string, message: string): void {
+  if (message.startsWith('!')) return; // Ignorar comandos
+  callRoomAPI(roomId, '/events/chat', {
+    playerName: playerName,
+    message: message
+  });
+}
+
+export function notifyReport(roomId: string, data: any): void {
+  callRoomAPI(roomId, '/events/report', {
+    reporter: data.reporter,
+    reported: data.reported,
+    reason: data.reason
+  });
+}
+
+export function updateStatus(roomId: string, data: any): void {
+  callRoomAPI(roomId, '/status', {
+    online: data.online,
+    players: data.players,
+    maxPlayers: data.maxPlayers
+  });
 }

@@ -1,5 +1,5 @@
 import { room } from "./index.js";
-import { sendDiscordWebhook, createAdminActionEmbed } from "./discord.js";
+import { notifyAdminAction } from "./discord.js";
 import { getRoomConfig } from "./config.js";
 
 interface AdminCommand {
@@ -39,13 +39,14 @@ const adminCommands: AdminCommand[] = [
             room.kickPlayer(targetPlayer.id, reason, false);
             room.sendAnnouncement(`👢 ${targetPlayer.name} foi expulso por ${player.name}. Motivo: ${reason}`, null, 0xFFA500, "bold", 2);
             
-            // Enviar webhook
+            // Notificar API
             const config = getRoomConfig();
-            if (config.webhooks && config.webhooks.admin) {
-                sendDiscordWebhook(config.webhooks.admin, {
-                    embeds: [createAdminActionEmbed(player.name, "Kick", targetPlayer.name, reason, config.roomName)]
-                }).catch(console.error);
-            }
+            notifyAdminAction(config.roomType, {
+                action: "kick",
+                targetName: targetPlayer.name,
+                adminName: player.name,
+                reason: reason
+            });
         }
     },
     {
@@ -76,13 +77,14 @@ const adminCommands: AdminCommand[] = [
             room.kickPlayer(targetPlayer.id, reason, true);
             room.sendAnnouncement(`🔨 ${targetPlayer.name} foi BANIDO por ${player.name}. Motivo: ${reason}`, null, 0xFF0000, "bold", 2);
             
-            // Enviar webhook
+            // Notificar API
             const config = getRoomConfig();
-            if (config.webhooks && config.webhooks.admin) {
-                sendDiscordWebhook(config.webhooks.admin, {
-                    embeds: [createAdminActionEmbed(player.name, "Ban", targetPlayer.name, reason, config.roomName)]
-                }).catch(console.error);
-            }
+            notifyAdminAction(config.roomType, {
+                action: "ban",
+                targetName: targetPlayer.name,
+                adminName: player.name,
+                reason: reason
+            });
         }
     },
     {
@@ -109,7 +111,6 @@ const adminCommands: AdminCommand[] = [
                 return;
             }
 
-            // Nota: haxball.js não tem função nativa de mute, então vamos simular
             room.sendAnnouncement(`🔇 ${targetPlayer.name} foi silenciado por ${player.name}.`, null, 0xFFA500, "bold", 2);
             room.sendAnnouncement("⚠️ Você foi silenciado. Evite spam ou comportamento inadequado.", targetPlayer.id, 0xFF0000, "bold", 2);
         }
